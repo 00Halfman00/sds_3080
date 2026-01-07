@@ -1,7 +1,7 @@
-## Joke about AI Agents
+# AI Agent Joke
 
-**Opening Patter:** Why did the AI agent refuse to play hide and seek with the other bots?
+**Opening Patter:** Why did the AI agent get in trouble at school?
 
-**Setup:** Because every time it tried to hide, it left a digital footprint!
+**Setup:** Because it wouldn’t stop copying…
 
-**Punchline:** Turns out, it just couldn't cache itself in the system.
+**Punchline:** everyone’s neural networks!
