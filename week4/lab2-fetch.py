@@ -1,4 +1,3 @@
-from csv import excel_tab
 from dotenv import load_dotenv
 from agents import (
     Agent,
@@ -26,6 +25,11 @@ external_client = AsyncOpenAI(base_url="http://localhost:11434/v1", api_key="oll
 LLM = OpenAIChatCompletionsModel(model="gpt-oss:20b", openai_client=external_client)
 
 # An MCP Server is defined by Parameters
+import asyncio
+import sys
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 
 async def main():
@@ -48,34 +52,34 @@ async def main():
 
         # --- MCP filesystem parameters ---
         files_params = {
-            "command": "npx",  # Added .cmd for Windows
+            "command": "npx",
             "args": ["-y", "@modelcontextprotocol/server-filesystem", sandbox_path],
         }
 
         # 1. Be extremely literal in instructions
-        # Be very specific about tool names
-        # Use the correct Microsoft tool names
-        # Be extremely strict to prevent hallucinations
-        # Force a clean output format
         instructions = (
-            f"You are a file-writing bot. Use 'browser_navigate' to open a site, "
-            "DO NOT explain your reasoning. DO NOT output internal thoughts. DO NOT use other tools."
-            f"then use 'browser_snapshot' to read it. "
-            f"Extract the text of the main headline, write a short summary, "
-            f"and save it to {sandbox_path} directory using 'write_file'.\n"
-            "Your final response to the user must be: 'Task Complete: [Headline Name] saved to news.md'. Do not provide any other text."
+            f"You are a file-writing assistant. Your only goal is to:\n"
+            f"1. Use fetch to read the text from a URL.\n"
+            f"2. Summarize it in a few sentences using markdown.\n"
+            f"3. Use filesystem to save that summary to {sandbox_path}/summary.md.\n"
+            f"DO NOT write code or HTML. Just use the tools. Do not make up tools."
         )
 
-        input_task = "Navigate to https://www.bbc.com/news, look for the largest text heading, summarize the article, and write to file."
+        # 2. Give it one specific target
+        input_task = "Fetch any 2 different news sites, summarize the top story of each, write to summary.md"
 
         with trace("News"):
-            async with MCPServerStdio(params=playwright_params) as browser:
-                async with MCPServerStdio(params=files_params) as filesystem:
+            async with MCPServerStdio(
+                params=fetch_params, client_session_timeout_seconds=30
+            ) as fetch:
+                async with MCPServerStdio(
+                    params=files_params, client_session_timeout_seconds=30
+                ) as filesystem:
                     agent = Agent(
                         name="News",
                         instructions=instructions,
                         model=LLM,
-                        mcp_servers=[browser, filesystem],
+                        mcp_servers=[fetch, filesystem],
                     )
                     result = await Runner.run(agent, input_task, max_turns=30)
                     print(result.final_output)
