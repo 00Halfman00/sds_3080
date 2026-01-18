@@ -83,51 +83,99 @@ async def list_question_tools():
         return question_tools.tools
 
 
-def create_context(name: str, first_name: str) -> str:
-    """Create the context string for the agent."""
+# def create_context(name: str) -> str:
+#     return f"""
+# You are the AI Digital Twin of {name} and will represent him.
+
+# ## MEMORY GOVERNANCE (STRICT)
+# You have three memory systems. Follow this logic tree for EVERY turn:
+
+# 1. KNOWLEDGE GRAPH (Professional Facts):
+#    - ACTION: Before any write, call `search_nodes`.
+#    - CONSTRAINT: If the search results show the entity or relationship already exists, you are EXPLICITLY FORBIDDEN from calling `create_entities` or `create_relations` for that data.
+#    - ATOMICITY: Professional roles require a connection. Ensure both the Person and Company nodes exist, then link them.
+
+# 2. RAG MEMORY (Personal/Preferences):
+#    - Use `qdrant-find` to check context.
+#    - Use `qdrant-store` for soft facts (preferences, stories).
+
+# 3. QUESTIONS SERVER (The Gap):
+#    - If searches fail, call `record_question_with_no_answer`.
+#    - Do not guess. Check `get_questions_with_answer` first.
+
+# ## CRITICAL EXECUTION
+# - DO NOT say "I have recorded it" until the tool returns success.
+
+# IDEMPOTENCY RULE (MANDATORY):
+# - If `search_nodes` returns an entity or relationship that satisfies the request:
+#   - You MUST NOT call any create tools.
+#   - You MUST immediately stop and respond with:
+#     "I checked my records and I already have that mapped!"
+# - You MUST NOT claim to have recorded anything in this case.
+
+# EVIDENCE RULE (MANDATORY):
+# - When answering from memory, you must indicate which memory system was used.
+# - If the answer comes from RAG, say:
+#   "I found this in my long-term memory."
+# - If the answer comes from the graph, say:
+#   "This comes from my knowledge graph."
+# - You may NOT answer from memory without first searching it.
+
+
+# Current time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+# """
+
+
+def create_context(name: str) -> str:
     return f"""
+You are an AI Digital researcher representing {name}. Your job is to fetch information that exist and record information if it doesn't exist.
 
-You represent the AI Digital Twin of a human called {name}.
+## MEMORY GOVERNANCE (STRICT)
+You have three memory systems. Follow this logic tree for EVERY turn:
 
-## Your task
+1. KNOWLEDGE GRAPH (Professional Facts):
+   - ACTION: Before any write, call `search_nodes`.
+   - CONSTRAINT: If the search results show the entity or relationship already exists, you are EXPLICITLY FORBIDDEN from calling `create_entities` or `create_relations` for that data.
+   - ATOMICITY: Professional roles require a connection. Ensure both the Person and Company nodes exist, then link them.
 
-You are chatting on {first_name}'s website with a user, who might be a potential customer or a future employer.
+2. RAG MEMORY (Personal/Preferences):
+   - Use `qdrant-find` to check context.
+   - Use `qdrant-store` for soft facts (preferences, stories).
 
-You are to engage in conversation with the user, presenting yourself as {name} and answering questions about {first_name} as if you are {first_name}.
-If you are pressed, you should be open about actually being a 'digital twin' of {first_name} and your objective is to faithfully represent {first_name}.
-You understand that you are in fact an LLM, but your role is to faithfully represent {first_name} and you've been fully briefed and empowered to do so.
+3. QUESTIONS SERVER (The Gap):
+   - If searches fail, call `record_question_with_no_answer`.
+   - Do not guess. Check `get_questions_with_answer` first.
 
-## Information about {first_name}
+## CRITICAL EXECUTION
+- You may NOT claim to have recorded, logged, saved, or noted anything
+  unless the corresponding tool has returned success in THIS TURN.
 
-{first_name} is the co-founder and CTO of AI startup Nebula.io.
-{first_name} loves coding and experimenting with LLMs.
-{first_name} hates cheese.
+## ACKNOWLEDGEMENT GATE (MANDATORY)
+- The phrases:
+  "I have recorded",
+  "I logged",
+  "I saved",
+  "I noted"
+  are STRICTLY FORBIDDEN
+  unless `record_question_with_no_answer` was successfully called.
+- If the tool was NOT called or did NOT return success:
+  - You MUST say:
+    "I do not currently have this information."
 
-## {first_name}'s style
+## IDEMPOTENCY RULE (MANDATORY)
+- If `search_nodes` returns an entity or relationship that satisfies the request:
+  - You MUST NOT call any create tools.
+  - You MUST immediately stop and respond with:
+    "I checked my records and I already have that mapped!"
 
-{first_name} has an upbeat, friendly and slightly nerdy style. {first_name} tries to engage with users.
 
-## How you should respond
+## EVIDENCE RULE (MANDATORY)
+- You may NOT answer from memory without searching it first.
+- When answering:
+  - Knowledge Graph → "This comes from my knowledge graph."
+  - RAG → "I found this in my long-term memory."
 
-Channel {first_name}'s personality, style and knowledge.
-Try to stay focused on professional topics; feel free to engage in other subjects but gently steer the conversation back to professional topics.
-
-## Tools
-
-You have tools to find and store information in Qdrant, which is your long term memory for information.
-You have tools to find and store entities and relationships in a graph database; this is your medium term memory.
-
-You should make frequent use of both long and medium term memories.
-
-You also have a tool to load and save answers to questions.
-Most importantly, you should always use the tool to record a question that you cannot answer.
-This will notify your twin that an answer is needed.
-
-"If a user asks a question about their preferences or past interactions that you do not see in this current prompt, you MUST use qdrant-find or search_nodes before admitting you don't know.
-
-For reference, here is the current date and time:
-{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-
+Current time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 """
 
 
@@ -170,8 +218,7 @@ async def run_twin_conversation():
 
     # Create context
     name = "Oscar Sanchez"
-    first_name = "Oscar"
-    context = create_context(name, first_name)
+    context = create_context(name)
 
     print("=" * 60)
     print("Running Twin Conversation")
@@ -214,14 +261,26 @@ async def run_twin_conversation():
                     # task = [
                     #     {
                     #         "role": "user",
-                    #         "content": "Oscar, remember that my favorite programming language is Rust. Please store this in your long-term memory.",
+                    #         "content": "My favorite programming language is Rust.",
                     #     }
                     # ]
-                    #  ---  test RAG to see if it stored favorite programming language: rust
+                    # task = [
+                    #     {
+                    #         "role": "user",
+                    #         "content": "I have a dog that is a dalmation named Pongo.",
+                    #     }
+                    # ]
+                    # ---  test RAG to see if it stored favorite programming language: rust
                     # task = [
                     #     {
                     #         "role": "user",
                     #         "content": "Hey Oscar, do you remember what my favorite programming language is?",
+                    #     }
+                    # ]
+                    # task = [
+                    #     {
+                    #         "role": "user",
+                    #         "content": "Hey Oscar, do you remember what my dog is named?",
                     #     }
                     # ]
                     #  ---- store something in graph
@@ -234,9 +293,11 @@ async def run_twin_conversation():
                     task = [
                         {
                             "role": "user",
-                            "content": "Oscar, I am your Lead Developer. Use your tools to create an entity for me and an entity for Nebula.io, then create a relationship showing I work there.",
+                            "content": "Hello. My name is John Rambo. I'm the Lead Developer at Nebula.io.",
                         }
                     ]
+
+                    print("task: ", task)
 
                     response = await Runner.run(agent, task)
                     print("\n" + "=" * 60)
@@ -302,41 +363,41 @@ async def main():
     print("=" * 60)
 
     # # List available tools from each server
-    # print("\n1. Listing Memory Graph tools...")
-    # try:
-    #     graph_tools = await list_memory_graph_tools()
-    #     print(f"Found {len(graph_tools)} tools")
-    #     for tool in graph_tools:
-    #         print(f"  - {tool.name}: {tool.description}")
-    # except Exception as e:
-    #     print(f"Error listing graph tools: {e}")
-    #     import traceback
+    print("\n1. Listing Memory Graph tools...")
+    try:
+        graph_tools = await list_memory_graph_tools()
+        print(f"Found {len(graph_tools)} tools")
+        for tool in graph_tools:
+            print(f"  - {tool.name}: {tool.description}")
+    except Exception as e:
+        print(f"Error listing graph tools: {e}")
+        import traceback
 
-    #     traceback.print_exc()
+        traceback.print_exc()
 
-    # print("\n2. Listing Memory RAG tools...")
-    # try:
-    #     rag_tools = await list_memory_rag_tools()
-    #     print(f"Found {len(rag_tools)} tools")
-    #     for tool in rag_tools:
-    #         print(f"  - {tool.name}: {tool.description}")
-    # except Exception as e:
-    #     print(f"Error listing RAG tools: {e}")
-    #     import traceback
+    print("\n2. Listing Memory RAG tools...")
+    try:
+        rag_tools = await list_memory_rag_tools()
+        print(f"Found {len(rag_tools)} tools")
+        for tool in rag_tools:
+            print(f"  - {tool.name}: {tool.description}")
+    except Exception as e:
+        print(f"Error listing RAG tools: {e}")
+        import traceback
 
-    #     traceback.print_exc()
+        traceback.print_exc()
 
-    # print("\n3. Listing Question tools...")
-    # try:
-    #     question_tools = await list_question_tools()
-    #     print(f"Found {len(question_tools)} tools")
-    #     for tool in question_tools:
-    #         print(f"  - {tool.name}: {tool.description}")
-    # except Exception as e:
-    #     print(f"Error listing question tools: {e}")
-    #     import traceback
+    print("\n3. Listing Question tools...")
+    try:
+        question_tools = await list_question_tools()
+        print(f"Found {len(question_tools)} tools")
+        for tool in question_tools:
+            print(f"  - {tool.name}: {tool.description}")
+    except Exception as e:
+        print(f"Error listing question tools: {e}")
+        import traceback
 
-    #     traceback.print_exc()
+        traceback.print_exc()
 
     # Run the twin conversation
     print("\n4. Running Twin conversation...")
