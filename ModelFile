@@ -1,0 +1,18 @@
+FROM gpt-oss:20b-lab
+
+SYSTEM "Summarize factual content concisely without speculation or embellishment."
+
+# Offload all possible layers to the RTX 3080
+PARAMETER num_gpu 999    
+
+# 16k is great, but ensure your 3080 has enough VRAM for the KV cache
+PARAMETER num_ctx 16384  
+
+# Factual consistency
+PARAMETER temperature 0  
+
+# Helps processing speed for large text blocks
+PARAMETER num_batch 512  
+
+# Use your 8 P-Cores for any layers that spill over to the CPU
+PARAMETER num_thread 8
